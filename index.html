@@ -23,8 +23,21 @@
         <div id="unity-build-title">ElectoralVision</div>
       </div>
     </div>
+    
+    <!-- Cargar XLSX antes que Unity -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
     <script>
+      // Variables globales
       var canvas = document.querySelector("#unity-canvas");
+      var unityInstance = null; // Inicializar como null
+      
+      // Verificar que XLSX se cargó
+      if (typeof XLSX !== 'undefined') {
+        console.log("✓ XLSX library loaded, version:", XLSX.version);
+      } else {
+        console.error("✗ XLSX library failed to load!");
+      }
 
       // Shows a temporary message banner/ribbon for a few seconds, or
       // a permanent error message on top of the canvas if type=='error'.
@@ -74,19 +87,12 @@
 
       if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
         // Mobile device style: fill the whole browser client area with the game canvas:
-
         var meta = document.createElement('meta');
         meta.name = 'viewport';
         meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
         document.getElementsByTagName('head')[0].appendChild(meta);
         document.querySelector("#unity-container").className = "unity-mobile";
         canvas.className = "unity-mobile";
-
-        // To lower canvas resolution on mobile devices to gain some
-        // performance, uncomment the following line:
-        // config.devicePixelRatio = 1;
-
-
       } else {
         // Desktop style: Render the game canvas in a window that can be maximized to fullscreen:
         canvas.style.width = "960px";
@@ -100,19 +106,56 @@
       script.onload = () => {
         createUnityInstance(canvas, config, (progress) => {
           document.querySelector("#unity-progress-bar-full").style.width = 100 * progress + "%";
-              }).then((unityInstance) => {
-                document.querySelector("#unity-loading-bar").style.display = "none";
-                document.querySelector("#unity-fullscreen-button").onclick = () => {
-                  unityInstance.SetFullscreen(1);
-                };
-
-              }).catch((message) => {
-                alert(message);
-              });
+        }).then((instance) => {
+          // IMPORTANTE: Asignar la instancia a la variable global
+          unityInstance = instance;
+          console.log("✓ Unity instance loaded and assigned globally");
+          
+          // Verificar disponibilidad de SendMessage
+          if (typeof SendMessage !== 'undefined') {
+            console.log("✓ SendMessage is available globally");
+          } else if (typeof unityInstance.SendMessage !== 'undefined') {
+            console.log("✓ unityInstance.SendMessage is available");
+            // Crear alias global para compatibilidad
+            window.SendMessage = function(gameObject, method, parameter) {
+              return unityInstance.SendMessage(gameObject, method, parameter);
             };
+            console.log("✓ SendMessage alias created");
+          } else {
+            console.error("✗ SendMessage not available");
+          }
+          
+          document.querySelector("#unity-loading-bar").style.display = "none";
+          document.querySelector("#unity-fullscreen-button").onclick = () => {
+            unityInstance.SetFullscreen(1);
+          };
+
+        }).catch((message) => {
+          console.error("Error loading Unity:", message);
+          alert("Error loading Unity: " + message);
+        });
+      };
 
       document.body.appendChild(script);
 
+      // Función helper para verificar si Unity está listo
+      function isUnityReady() {
+        return unityInstance !== null && 
+               (typeof SendMessage !== 'undefined' || 
+                (unityInstance && typeof unityInstance.SendMessage !== 'undefined'));
+      }
+
+      // Exponer función para debugging
+      window.checkUnityStatus = function() {
+        console.log("Unity Instance:", unityInstance);
+        console.log("SendMessage Global:", typeof SendMessage);
+        console.log("SendMessage Instance:", unityInstance ? typeof unityInstance.SendMessage : "N/A");
+        console.log("Unity Ready:", isUnityReady());
+      };
+
     </script>
+    
+    <!-- Input file para Excel -->
+    <input type="file" id="excelInput" style="display:none" accept=".xlsx,.xls" />
   </body>
 </html>
